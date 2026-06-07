@@ -167,6 +167,14 @@ export const DataSheetGrid = React.memo(
         (Cell & ScrollBehavior) | null
       >(null)
 
+      // Refs to read latest state values inside effects without adding them to dependency arrays
+      const activeCellRef = useRef(activeCell)
+      activeCellRef.current = activeCell
+      const selectionCellRef = useRef(selectionCell)
+      selectionCellRef.current = selectionCell
+      const editingRef = useRef(editing)
+      editingRef.current = editing
+
       // Min and max of the current selection (rectangle defined by the active cell and the selection cell), null when nothing is selected
       const selection = useMemo<Selection | null>(
         () =>
@@ -287,7 +295,11 @@ export const DataSheetGrid = React.memo(
 
       const isCellDisabled = useCallback(
         (cell: Cell): boolean => {
-          const disabled = columns[cell.col + 1].disabled
+          const column = columns[cell.col + 1]
+          if (!column) {
+            return false
+          }
+          const disabled = column.disabled
 
           return Boolean(
             typeof disabled === 'function'
@@ -455,6 +467,33 @@ export const DataSheetGrid = React.memo(
           scrollTo(activeCell)
         }
       }, [activeCell, scrollTo])
+
+      // Clamp activeCell and selectionCell when columns change (e.g. dynamic column removal)
+      useEffect(() => {
+        const colMax = columns.length - (hasStickyRightColumn ? 3 : 2)
+        const currentActiveCell = activeCellRef.current
+        const currentSelectionCell = selectionCellRef.current
+
+        if (currentActiveCell && currentActiveCell.col > colMax) {
+          if (colMax < 0) {
+            setActiveCell(null)
+          } else {
+            setActiveCell({ ...currentActiveCell, col: colMax })
+          }
+          if (editingRef.current) {
+            setEditing(false)
+          }
+        }
+
+        if (currentSelectionCell && currentSelectionCell.col > colMax) {
+          if (colMax < 0) {
+            setSelectionCell(null)
+          } else {
+            setSelectionCell({ ...currentSelectionCell, col: colMax })
+          }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [columns, hasStickyRightColumn])
 
       const setRowData = useCallback(
         (rowIndex: number, item: T) => {

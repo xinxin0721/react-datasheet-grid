@@ -98,7 +98,7 @@ export const SelectionRect = React.memo<SelectionContextType>(
       width:
         columnWidths
           .slice(selection.min.col + 1, selection.max.col + 2)
-          .reduce((a, b) => a + b) + extraPixelH(selection.max.col),
+          .reduce((a, b) => a + b, 0) + extraPixelH(selection.max.col),
       height:
         rowHeight(selection.max.row).top +
         rowHeight(selection.max.row).height -
