@@ -11,6 +11,29 @@ import cx from 'classnames'
 import { Cell as CellComponent } from './Cell'
 import { useMemoizedIndexCallback } from '../hooks/useMemoizedIndexCallback'
 
+export function getRowKey<T>(
+  data: T[],
+  index: number,
+  rowKey?: string | ((opts: { rowData: T; rowIndex: number }) => string)
+): React.Key {
+  if (rowKey) {
+    const row = data[index]
+    if (typeof rowKey === 'function') {
+      return rowKey({ rowData: row, rowIndex: index })
+    } else if (
+      typeof rowKey === 'string' &&
+      row instanceof Object &&
+      rowKey in row
+    ) {
+      const key = row[rowKey as keyof T]
+      if (typeof key === 'string' || typeof key === 'number') {
+        return key
+      }
+    }
+  }
+  return index
+}
+
 export const Grid = <T extends any>({
   data,
   columns,
@@ -67,24 +90,7 @@ export const Grid = <T extends any>({
     getScrollElement: () => outerRef.current,
     paddingStart: headerRowHeight,
     estimateSize: (index) => rowHeight(index).height,
-    getItemKey: (index: number): React.Key => {
-      if (rowKey && index > 0) {
-        const row = data[index - 1]
-        if (typeof rowKey === 'function') {
-          return rowKey({ rowData: row, rowIndex: index })
-        } else if (
-          typeof rowKey === 'string' &&
-          row instanceof Object &&
-          rowKey in row
-        ) {
-          const key = row[rowKey as keyof T]
-          if (typeof key === 'string' || typeof key === 'number') {
-            return key
-          }
-        }
-      }
-      return index
-    },
+    getItemKey: (index: number): React.Key => getRowKey(data, index, rowKey),
     overscan: 5,
   })
 
