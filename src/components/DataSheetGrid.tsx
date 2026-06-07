@@ -146,6 +146,8 @@ export const DataSheetGrid = React.memo(
 
       // True when the active cell is being edited
       const [editing, setEditing] = useState(false)
+      const editingRef = useRef(editing)
+      editingRef.current = editing
 
       // Number of rows the user is expanding the selection by, always a number, even when not expanding selection
       const [expandSelectionRowsCount, setExpandSelectionRowsCount] =
@@ -158,14 +160,29 @@ export const DataSheetGrid = React.memo(
       ] = useState<number | null>(null)
 
       // Highlighted cell, null when not focused
-      const [activeCell, setActiveCell] = useDeepEqualState<
+      const [rawActiveCell, setActiveCell] = useDeepEqualState<
         (Cell & ScrollBehavior) | null
       >(null)
 
       // The selection cell and the active cell are the two corners of the selection, null when nothing is selected
-      const [selectionCell, setSelectionCell] = useDeepEqualState<
+      const [rawSelectionCell, setSelectionCell] = useDeepEqualState<
         (Cell & ScrollBehavior) | null
       >(null)
+
+      // Clamp activeCell and selectionCell to valid column range synchronously during render
+      const maxCol = columns.length - (hasStickyRightColumn ? 3 : 2)
+
+      const activeCell = useMemo<(Cell & ScrollBehavior) | null>(() => {
+        if (rawActiveCell === null || maxCol < 0) return null
+        if (rawActiveCell.col <= maxCol) return rawActiveCell
+        return { ...rawActiveCell, col: maxCol }
+      }, [rawActiveCell, maxCol])
+
+      const selectionCell = useMemo<(Cell & ScrollBehavior) | null>(() => {
+        if (rawSelectionCell === null || maxCol < 0) return null
+        if (rawSelectionCell.col <= maxCol) return rawSelectionCell
+        return { ...rawSelectionCell, col: maxCol }
+      }, [rawSelectionCell, maxCol])
 
       // Min and max of the current selection (rectangle defined by the active cell and the selection cell), null when nothing is selected
       const selection = useMemo<Selection | null>(
@@ -183,6 +200,33 @@ export const DataSheetGrid = React.memo(
           },
         [activeCell, selectionCell]
       )
+
+      // Sync raw state when columns change dynamically (settle stale values)
+      useEffect(() => {
+        if (maxCol < 0) {
+          setActiveCell(null)
+          setSelectionCell(null)
+          setEditing(false)
+          return
+        }
+
+        setActiveCell((prev) => {
+          if (prev === null) return null
+          if (prev.col <= maxCol) return prev
+          return { ...prev, col: maxCol, doNotScrollX: true }
+        })
+
+        setSelectionCell((prev) => {
+          if (prev === null) return null
+          if (prev.col <= maxCol) return prev
+          return { ...prev, col: maxCol, doNotScrollX: true }
+        })
+
+        if (editingRef.current) {
+          setEditing(false)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [columns, hasStickyRightColumn])
 
       // Behavior of the selection when the user drags the mouse around
       const [selectionMode, setSelectionMode] = useDeepEqualState({
