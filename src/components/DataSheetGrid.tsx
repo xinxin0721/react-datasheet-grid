@@ -158,14 +158,45 @@ export const DataSheetGrid = React.memo(
       ] = useState<number | null>(null)
 
       // Highlighted cell, null when not focused
-      const [activeCell, setActiveCell] = useDeepEqualState<
+      const [rawActiveCell, setActiveCell] = useDeepEqualState<
         (Cell & ScrollBehavior) | null
       >(null)
 
       // The selection cell and the active cell are the two corners of the selection, null when nothing is selected
-      const [selectionCell, setSelectionCell] = useDeepEqualState<
+      const [rawSelectionCell, setSelectionCell] = useDeepEqualState<
         (Cell & ScrollBehavior) | null
       >(null)
+
+      // Clamp activeCell and selectionCell to current column bounds (synchronous)
+      const maxCol = columns.length - (hasStickyRightColumn ? 3 : 2)
+      const activeCell = useMemo<(Cell & ScrollBehavior) | null>(() => {
+        if (!rawActiveCell || maxCol < 0) return null
+        return rawActiveCell.col > maxCol
+          ? { ...rawActiveCell, col: maxCol }
+          : rawActiveCell
+      }, [rawActiveCell, maxCol])
+      const selectionCell = useMemo<(Cell & ScrollBehavior) | null>(() => {
+        if (!rawSelectionCell || maxCol < 0) return null
+        return rawSelectionCell.col > maxCol
+          ? { ...rawSelectionCell, col: maxCol }
+          : rawSelectionCell
+      }, [rawSelectionCell, maxCol])
+
+      // Flush clamped values back to state so raw values stay in sync
+      useEffect(() => {
+        if (maxCol < 0) {
+          setActiveCell(null)
+          setSelectionCell(null)
+          setEditing(false)
+          return
+        }
+        setActiveCell((prev) =>
+          prev && prev.col > maxCol ? { ...prev, col: maxCol } : prev
+        )
+        setSelectionCell((prev) =>
+          prev && prev.col > maxCol ? { ...prev, col: maxCol } : prev
+        )
+      }, [columns, hasStickyRightColumn])
 
       // Min and max of the current selection (rectangle defined by the active cell and the selection cell), null when nothing is selected
       const selection = useMemo<Selection | null>(
