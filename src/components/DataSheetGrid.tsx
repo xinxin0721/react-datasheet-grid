@@ -223,6 +223,43 @@ export const DataSheetGrid = React.memo(
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [activeCell !== null])
 
+      // Clamp selection state when columns or data change to prevent out-of-bounds references
+      useEffect(() => {
+        const colMax = columns.length - (hasStickyRightColumn ? 3 : 2)
+        const rowMax = data.length
+
+        if (colMax < 0 || rowMax === 0) {
+          setActiveCell(null)
+          setSelectionCell(null)
+          return
+        }
+
+        setActiveCell((prev) => {
+          if (!prev) return prev
+          if (prev.col > colMax || prev.row > rowMax - 1) {
+            return {
+              ...prev,
+              col: Math.max(0, Math.min(prev.col, colMax)),
+              row: Math.max(0, Math.min(prev.row, rowMax - 1)),
+            }
+          }
+          return prev
+        })
+
+        setSelectionCell((prev) => {
+          if (!prev) return prev
+          if (prev.col > colMax || prev.row > rowMax - 1) {
+            return {
+              ...prev,
+              col: Math.max(0, Math.min(prev.col, colMax)),
+              row: Math.max(0, Math.min(prev.row, rowMax - 1)),
+            }
+          }
+          return prev
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [columns, hasStickyRightColumn, data.length])
+
       // Extract the coordinates of the cursor from a mouse event
       const getCursorIndex = useCallback(
         (
@@ -287,7 +324,9 @@ export const DataSheetGrid = React.memo(
 
       const isCellDisabled = useCallback(
         (cell: Cell): boolean => {
-          const disabled = columns[cell.col + 1].disabled
+          const column = columns[cell.col + 1]
+          if (!column) return true
+          const disabled = column.disabled
 
           return Boolean(
             typeof disabled === 'function'
@@ -543,8 +582,8 @@ export const DataSheetGrid = React.memo(
           for (let row = min.row; row <= max.row; ++row) {
             for (let col = min.col; col <= max.col; ++col) {
               if (!isCellDisabled({ col, row })) {
-                const { deleteValue = ({ rowData }) => rowData } =
-                  columns[col + 1]
+                const { deleteValue = ({ rowData }: { rowData: any }) => rowData } =
+                  columns[col + 1] ?? {}
                 newData[row] = deleteValue({
                   rowData: newData[row],
                   rowIndex: row,
@@ -556,7 +595,7 @@ export const DataSheetGrid = React.memo(
           if (smartDelete && deepEqual(newData, data)) {
             setActiveCell({ col: 0, row: min.row, doNotScrollX: true })
             setSelectionCell({
-              col: columns.length - (hasStickyRightColumn ? 3 : 2),
+              col: Math.max(0, columns.length - (hasStickyRightColumn ? 3 : 2)),
               row: max.row,
               doNotScrollX: true,
             })
@@ -617,7 +656,7 @@ export const DataSheetGrid = React.memo(
               copyData.push([])
 
               for (let col = min.col; col <= max.col; ++col) {
-                const { copyValue = () => null } = columns[col + 1]
+                const { copyValue = () => null } = columns[col + 1] ?? {}
                 copyData[row - min.row].push(
                   copyValue({ rowData: data[row], rowIndex: row })
                 )
@@ -1118,7 +1157,7 @@ export const DataSheetGrid = React.memo(
               copyData.push([])
 
               for (let col = min.col; col <= max.col; ++col) {
-                const { copyValue = () => null } = columns[col + 1]
+                const { copyValue = () => null } = columns[col + 1] ?? {}
                 copyData[row - min.row].push(
                   String(copyValue({ rowData: data[row], rowIndex: row }) ?? '')
                 )
